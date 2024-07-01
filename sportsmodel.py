@@ -9,6 +9,8 @@ game_lineups = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\game_lineu
 
 games = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\games.csv")
 
+game_events = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\game_events.csv")
+
 X = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\game_features_df.csv")
 
 # Changing date format
@@ -30,11 +32,12 @@ game_ids_to_keep = id_counts[id_counts == 22].index
 # Filter the DataFrames to keep only rows with these game IDs
 filtered_game_lineups = filtered_game_lineups[game_lineups['game_id'].isin(game_ids_to_keep)]
 filtered_games = games[games['game_id'].isin(game_ids_to_keep)]
+filtered_game_events = game_events[game_events['game_id'].isin(game_ids_to_keep)]
 
 #filtered_game_lineups.to_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\filtered_game_lineups.csv", index=False)
 #filtered_games.to_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\filtered_games.csv", index=False)
-
-#print('saved file')
+filtered_game_events.to_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\filtered_game_events.csv", index=False)
+print('saved file')
 
 '''
 
