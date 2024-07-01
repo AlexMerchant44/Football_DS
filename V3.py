@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
@@ -20,6 +21,8 @@ sorted_filtered_game_lineups = filtered_game_lineups.sort_values(by='game_id').r
 sorted_filtered_game_events = filtered_game_events.sort_values(by='game_id').reset_index(drop=True)
 
 X = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\X_df.csv", low_memory=False)
+average_goals_df = pd.read_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\average_goals_df.csv", low_memory=False)
+
 '''
 # Group by 'game_id' and aggregate player IDs into lists
 game_lineups_dict = sorted_filtered_game_lineups.groupby('game_id')['player_id'].apply(list).to_dict()
@@ -98,11 +101,67 @@ X = pd.concat([X, formation_cols], axis=1)
 
 X['total_goals'] = sorted_filtered_games['home_club_goals'] + sorted_filtered_games['away_club_goals']
 
-X1 = X[['total_valuation', 'year', 'month', 'day', 'home_club_id', 'away_club_id', 'hc_defenders',
+# Merge average goals for home clubs
+X = X.merge(average_goals_df, how='left', left_on='home_club_id', right_on='club_id')
+X.rename(columns={'average_club_goals': 'home_club_average_goals'}, inplace=True)
+X.drop(columns=['club_id'], inplace=True)  # Drop the redundant 'club_id' column
+
+# Merge average goals for away clubs
+X = X.merge(average_goals_df, how='left', left_on='away_club_id', right_on='club_id')
+X.rename(columns={'average_club_goals': 'away_club_average_goals'}, inplace=True)
+X.drop(columns=['club_id'], inplace=True)  # Drop the redundant 'club_id' column
+
+'''
+
+# Initialize dictionaries to store total goals and game count for each club
+total_goals = {}
+game_count = {}
+
+# Iterate through games dataset
+for index, row in X.iterrows():
+    home_club = row['home_club_id']
+    away_club = row['away_club_id']
+    goals = row['total_goals']
+    
+    # Update total goals and game count for home club
+    if home_club in total_goals:
+        total_goals[home_club] += goals
+        game_count[home_club] += 1
+    else:
+        total_goals[home_club] = goals
+        game_count[home_club] = 1
+    
+    # Update total goals and game count for away club
+    if away_club in total_goals:
+        total_goals[away_club] += goals
+        game_count[away_club] += 1
+    else:
+        total_goals[away_club] = goals
+        game_count[away_club] = 1
+
+# Calculate average goals per game for each club
+average_goals = {}
+for club_id in total_goals:
+    average_goals[club_id] = total_goals[club_id] / game_count[club_id]
+
+# Create a new dataset with club_id and average_club_goals
+average_goals_df = pd.DataFrame(list(average_goals.items()), columns=['club_id', 'average_club_goals'])
+
+# Save the filtered_game_lineups DataFrame to a CSV file
+average_goals_df.to_csv("C:\\Users\\AlexM\\OneDrive\\GameDatasets\\average_goals_df.csv", index=False)
+
+print('saved file')
+'''
+
+
+
+X1 = X[['total_valuation', 'year', 'month', 'day', 'home_club_average_goals', 'away_club_average_goals', 'hc_defenders',
          'hc_midfielders', 'hc_attackers', 'hc_forwards', 'ac_defenders', 'ac_midfielders',
          'ac_attackers', 'ac_forwards']]
 y = X['total_goals']
 
+
+'''
 # Split the data in an 80:20 split, randomly assigning 80% of the rows to the training data
 X_train, X_test_val, y_train, y_test_val = train_test_split(X1,y, test_size=0.2, shuffle = True, random_state=0)
 
@@ -125,5 +184,99 @@ print(f"Mean Squared Error: {mse}")
 print(f"Root Mean Squared Error: {rmse}")
 print(f"Mean Absolute Error: {mae}")
 print(f"R-squared: {r2}")
+'''
+#tune it, try classifier if not, find average goals an then say is it greater than or equal to this.
+'''
+#change data split
+train_errors = []
+val_errors = []
+splits = np.arange(0.1, 0.9, 0.1)
 
+for split in splits:
+    # Split the data
+    X1_train, X1_test_val, y1_train, y1_test_val = train_test_split(X1, y, test_size=split, shuffle=True, random_state=0)
+    X1_val, X1_test, y1_val, y1_test = train_test_split(X1_test_val, y1_test_val, test_size=0.5, random_state=0)
 
+    # Create a new model using only the optimal features
+    rf_model1 = RandomForestRegressor(random_state=0)
+    rf_model1.fit(X1_train, y1_train)
+
+    train_error = mean_absolute_error(y1_train, rf_model1.predict(X1_train))
+    val_error = mean_absolute_error(y1_val, rf_model1.predict(X1_val))
+
+    train_errors.append(train_error)
+    val_errors.append(val_error)
+
+# Plot the errors
+plt.figure()
+plt.plot(splits, train_errors, 'b', label='Training MAE')
+plt.plot(splits, val_errors, 'r', label='Validation MAE')
+plt.xlabel('Training Data Split', fontsize=14)
+plt.ylabel('Mean Absolute Error', fontsize=14)
+plt.legend(fontsize=12)
+plt.title('Model MAE vs. Training Data Split', fontsize=16)
+plt.show()
+
+#change n estimators
+train_errors = []
+val_errors = []
+estimators = np.arange(100, 1000, 100)
+
+for estimator in estimators:
+    # Split the data
+    X1_train, X1_test_val, y1_train, y1_test_val = train_test_split(X1, y, test_size=0.1, shuffle=True, random_state=0)
+    X1_val, X1_test, y1_val, y1_test = train_test_split(X1_test_val, y1_test_val, test_size=0.5, random_state=0)
+
+    # Create a new model using only the optimal features
+    rf_model1 = RandomForestRegressor(random_state=0, n_estimators=estimator, n_jobs=-1)
+    rf_model1.fit(X1_train, y1_train)
+
+    train_error = mean_absolute_error(y1_train, rf_model1.predict(X1_train))
+    val_error = mean_absolute_error(y1_val, rf_model1.predict(X1_val))
+
+    train_errors.append(train_error)
+    val_errors.append(val_error)
+
+# Plot the errors
+plt.figure()
+plt.plot(estimators, train_errors, 'b', label='Training MAE')
+plt.plot(estimators, val_errors, 'r', label='Validation MAE')
+plt.xlabel('Training Data Split', fontsize=14)
+plt.ylabel('Mean Absolute Error', fontsize=14)
+plt.legend(fontsize=12)
+plt.title('Model MAE vs. Training Data Split', fontsize=16)
+plt.show()
+
+'''
+
+#change n estimators
+train_errors = []
+val_errors = []
+min_samples_split = [2, 3, 4, 5, 6, 7, 8, 9]
+
+for nr in min_samples_split:
+    # Split the data
+    X1_train, X1_test_val, y1_train, y1_test_val = train_test_split(X1, y, test_size=0.1, shuffle=True, random_state=0)
+    X1_val, X1_test, y1_val, y1_test = train_test_split(X1_test_val, y1_test_val, test_size=0.5, random_state=0)
+
+    # Create a new model using only the optimal features
+    rf_model1 = RandomForestRegressor(random_state=0, n_estimators=100, n_jobs=-1, min_samples_split=nr)
+    rf_model1.fit(X1_train, y1_train)
+
+    train_error = mean_absolute_error(y1_train, rf_model1.predict(X1_train))
+    val_error = mean_absolute_error(y1_val, rf_model1.predict(X1_val))
+
+    train_errors.append(train_error)
+    val_errors.append(val_error)
+
+# Plot the errors
+plt.figure()
+plt.plot(min_samples_split, train_errors, 'b', label='Training MAE')
+plt.plot(min_samples_split, val_errors, 'r', label='Validation MAE')
+plt.xlabel('Training Data Split', fontsize=14)
+plt.ylabel('Mean Absolute Error', fontsize=14)
+plt.legend(fontsize=12)
+plt.title('Model MAE vs. min samples split', fontsize=16)
+plt.show()
+
+#somehow include club ids, change average club goals to be per year, include players somehow. make classifier
